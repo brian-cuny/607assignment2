@@ -3,7 +3,7 @@ library(tidyverse)
 library(likert)
 library(ggplot2)
 
-mydb <- dbConnect(MySQL(), user='root', password='cosmic joke', dbname='week2assignment', host='localhost')
+mydb <- dbConnect(MySQL(), user='root', password='', dbname='week2assignment', host='localhost')
 rb <- dbSendQuery(mydb, 'SELECT * FROM ratings')
 data <- fetch(rb, n=-1) %>%
   subset(select=c(2:7))
