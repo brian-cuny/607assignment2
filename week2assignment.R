@@ -5,10 +5,11 @@ library(ggplot2)
 library(reshape)
 library(data.table)
 
+<<<<<<< HEAD
 #modify for reading into mysql
 raw <- read.csv('https://raw.githubusercontent.com/brian-cuny/607assignment2/master/week2assignmentMovies.csv',
-                header=TRUE, stringsAsFactors=FALSE) %>%
-    cbind(ID=1:nrow(raw))
+                header=TRUE, stringsAsFactors=FALSE)
+raw <- cbind(raw, ID=1:nrow(raw))
 colnames(raw) <- lapply(names(raw), FUN=function(x){gsub('(\\.)+', ' ', x) %>% toupper()})
 
 users <- subset(raw, select=c(1, 2))
