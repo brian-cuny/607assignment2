@@ -2,40 +2,7 @@
 output: html_document
 ---
 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
-<style> 
-  .right{ 
-    float: right; 
-  } 
-  
-  img{ 
-    display:block; 
-    margin: 0 auto;
-  } 
-  
-  pre{ 
-    overflow-x: hidden; 
-    overflow-y: hidden; 
-  } 
-  
-  body{ 
-    margin-top: 20px; 
-    margin-bottom: 20px; 
-  } 
-  
-  .col-left{ 
-    float: left; 
-    width: 50%; 
-  } 
-  
-  .col-right{ 
-    float: right; 
-    width: 50%; 
-  } 
-  
-  p{
-    margin-bottom: 0px;
-  }
-</style>
+<link rel="stylesheet" href="./custom.css">
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
@@ -44,6 +11,8 @@ library(RMySQL)
 library(tidyverse)
 library(likert)
 library(ggplot2)
+library(data.table)
+library(knitr)
 mydb <- dbConnect(MySQL(), user='root', password='cosmic joke', dbname='week2assignment', host='localhost')
 ```
 
@@ -59,128 +28,88 @@ mydb <- dbConnect(MySQL(), user='root', password='cosmic joke', dbname='week2ass
 </div>
 
 <div class='well'>
-  All of my students filled out a Google form asking them to rate each of the 6 highest grossing movies of 2017 on a scale from 0-5 based on how much they enjoyed the film. 0 was used to indicate the student had not seen the movie as Google forms did not appear to have an N/A option. The data was stored and downloaded in a csv file. A few lines are reproduced below.
+  <p>All of my students filled out a Google form asking them to rate each of the 6 highest grossing movies of 2017 on a scale from 0-5 based on how much they enjoyed the film. 0 was used to indicate the student had not seen the movie as Google forms did not appear to have an N/A option. The data was stored and downloaded in a csv file.</p>
+  </br>
+  <p>The data was read in to r and lightly modified for better display.</p>
 </div>
 
-<table class='table table-striped table-bordered'>
-<thead>
-<tr>
-<th>
-  Timestamp
-</th>
-<th>
-  Email Address
-</th>
-<th>
-  Star wars: The Last Jedi
-</th>
-<th>
-  Beauty and the Beast (2017)
-</th>
-<th>
-  Wonder Woman
-</th>
-<th>
-  Guardians of the Galaxy vol. 2
-</th>
-<th>
-  Jumanji: Welcome to the Jungle
-</th>
-<th>
-  Spider-Man: Homecoming
-</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>2/5/2018 7:25:53</td>
-<td>Redacted Unique 1</td>
-<td>3</td>
-<td>1</td>
-<td>2</td>
-<td>3</td>
-<td>3</td>
-<td>4</td>
-</tr>
-<tr>
-<td>2/5/2018 7:27:25</td>
-<td>Redacted Unique 2</td>
-<td>5</td>
-<td>4</td>
-<td>0</td>
-<td>0</td>
-<td>5</td>
-<td>0</td>
-</tr>
-<tr>
-<td>2/5/2018 7:43:56</td>
-<td>Redacted Unique 3</td>
-<td>5</td>
-<td>0</td>
-<td>0</td>
-<td>5</td>
-<td>0</td>
-<td>5</td>
-</tr>
-</tbody>
-</table>
+```{r}
+raw <- read.csv('https://raw.githubusercontent.com/brian-cuny/607assignment2/master/week2assignmentMovies.csv',
+                header=TRUE, stringsAsFactors=FALSE)
+raw <- cbind(raw, ID=1:nrow(raw))
+colnames(raw) <- lapply(names(raw), FUN=function(x){gsub('(\\.)+', ' ', x) %>% toupper()})
+kable(head(raw, n=10))
+```
 
 <div class='well'>
-  I wrote an sql script to import the csv file into a table called ratings. The script is recreated below. This script removes the unneeded columns representing the timestamp and the email address and replaces all 0s with Null.
+  <p>I ran into a small problem with the way the data was formatted. While the csv file was formatting nicely by Google for import into R, it was not formatted properly to be stored in a MYSQL table. Ideally, there would be two tables, one for users containing the timestamp and email address and one for each individual movie rating containing the user's id, the movie they rated and their rating.</p>
+  </br>
+  <p>I decided to modify the table to create two csv files that could be read into MYSQL to create properly formatted tables. Then those tables could be queried in R. This is clearly a roundabout solution, but I did not feel it appropriate to simply read the original csv into MYSQL and then query it all into R. This did not seem to be in the spirit of the original project.
+</div>
+
+```{r}
+users <- subset(raw, select=c(1, 2))
+reviews <- melt(subset(raw, select=3:ncol(raw)), id=c('ID'))
+
+#write.csv(users, 'local-pathway', eol='\n')
+#write.csv(reviews, 'local-pathway', eol = "\n")
+kable(head(users))
+kable(rbind(head(reviews), tail(reviews)))
+```
+
+<div class='well'>
+  I wrote an SQL script to read in both of these csv files and store them in a database. The script is recreated below. In addition to reading in the csv files I converted the timestamp column from a String to a DateTime and replaced all the 0 scores with Null.
 </div>
 
 <pre>
-DROP TABLE IF EXISTS ratings;
+DROP TABLE IF EXISTS reviews;
+DROP TABLE IF EXISTS users;
 
-CREATE TABLE ratings(
- rating_id INTEGER AUTO_INCREMENT PRIMARY KEY NOT NULL,
- star_wars INTEGER,
- beauty_and_the_beast INTEGER,
- wonder_woman INTEGER,
- guardians_of_the_galaxy_2 INTEGER,
- jumanji INTEGER,
- spiderman_homecoming INTEGER
+CREATE TABLE users(
+ user_id INTEGER PRIMARY KEY NOT NULL,
+ timestamp DATETIME NOT NULL,
+ email VARCHAR(50)
 );
 
-LOAD DATA LOCAL INFILE 'FILEPATHWAY' 
-INTO TABLE ratings
+CREATE TABLE reviews(
+ review_id INTEGER PRIMARY KEY NOT NULL,
+ user_id INTEGER NOT NULL,
+ movie VARCHAR(50) NOT NULL,
+ rating INTEGER,
+ foreign key(user_id) references users(user_id)
+);
+
+LOAD DATA LOCAL INFILE 'local-pathway' 
+INTO TABLE users
 FIELDS TERMINATED BY ',' 
 ENCLOSED BY '"'
 LINES TERMINATED BY '\n'
-IGNORE 1 ROWS(@dummy, @dummy, @star_wars, @beauty_and_the_beast, @wonder_woman, @guardians_of_the_galaxy_2, @jumanji, @spiderman_homecoming)
+IGNORE 1 ROWS(user_id, @timestamp, email)
+SET 
+timestamp = STR_TO_DATE(@timestamp, '%d/%m/%Y %H:%i:%s')
+;
+
+LOAD DATA LOCAL INFILE 'local-pathway' 
+INTO TABLE reviews
+FIELDS TERMINATED BY ',' 
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n'
+IGNORE 1 ROWS(review_id, user_id, movie, @rating)
 SET
-star_wars = nullif(@star_wars,0),
-beauty_and_the_beast = nullif(@beauty_and_the_beast,0),
-wonder_woman = nullif(@wonder_woman,0),
-guardians_of_the_galaxy_2 = nullif(@guardians_of_the_galaxy_2,0),
-jumanji = nullif(@jumanji,0),
-spiderman_homecoming = nullif(@spiderman_homecoming,0)
+rating = nullif(@rating,0)
 ;
 </pre>
 
 <div class='well'>
-  Using the RMySQL library, I connected to the database and read the information into R. The primary key column was discarded and the columns were given names more appropriate for being displayed on plots.
+  Using the RMySQL library, I connected to the database and read the relevant information into R. 
 </div>
 
-```{r}
+```{r, warning=FALSE}
 #mydb <- dbConnect(MySQL(), user='root', password='SECRET', dbname='week2assignment', host='localhost')
-rb <- dbSendQuery(mydb, 'SELECT * FROM ratings')
+rb <- dbSendQuery(mydb, 'SELECT users.email, reviews.movie, reviews.rating FROM users JOIN reviews ON users.user_id = reviews.user_id')
 data <- fetch(rb, n=-1) %>%
-  subset(select=c(2:7))
-colnames(data) <- lapply(names(data), FUN=function(x){gsub('_', ' ', x) %>% toupper()})
-str(data)
-```
-
-<div class='well'>
-  I decided to create a heat plot of the student's rankings using the likert library. This required processing the data to convert it to a factor all of which needed the same number of levels.
-</div>
-
-```{r}
-#From Likert Demo
-for(i in seq_along(data)) {
-  data[,i] <- factor(data[,i], levels=1:5)
-}
-plot(likert(data), type='heat',low.color='white', high.color='red',text.color='black')
+  dcast(formula=email~movie)
+kable(head(data))
 ```
 
 <div class='well'>
@@ -188,19 +117,26 @@ plot(likert(data), type='heat',low.color='white', high.color='red',text.color='b
 </div>
 
 ```{r}
-moded <- data.frame(t(rbind(apply(data, 2, FUN=function(x){table(factor(x, levels=1:5), useNA = 'always')}))))
-rownames(moded) <- lapply(names(data), FUN=function(x){gsub('_', ' ', x) %>% toupper()})
+moded <- data.frame(t(rbind(apply(data[,2:ncol(data)], 2, FUN=function(x){table(factor(x, levels=1:5), useNA = 'always')}))))
 colnames(moded) <- c(1:5, 'Not Seen')
-moded
+kable(moded)
 ```
 
 <div class='well'>
-  Finally, I used the new data frame to display the proportion of students who had seen each movie.
+  Finally, I used the new data frame to display the proportion of rating that each movie received. I created a second, similar plot that excluded N/A responses as I believe that provided additional insight into my student's movie preferences.
 </div>
 
 ```{r}
-setNames(data.frame(rownames(moded), apply(moded, 1, FUN=function(x){ sum(x[1:5])/sum(x) })), c('Movie', 'Proportion')) %>%
-  ggplot(aes(x=Movie, y=Proportion, fill=Movie)) + geom_bar(stat='identity') + theme(legend.position='none') + labs(title='Proportion of Students Who Saw Movie') + coord_flip()
+moded$Movie <- rownames(moded)
+melt(moded) %>%
+  ggplot(aes(x=Movie, weight=value, fill=variable)) + geom_bar(position=position_fill(reverse=TRUE)) + labs(title='Proportion of Scores') + coord_flip() + labs(x='Proportion', fill='Score') + scale_fill_manual(values=c("red", "orange", "yellow", 'blue', 'green', 'black'))
+```
+
+```{r}
+moded['Not Seen'] <- NULL
+melt(moded) %>%
+  ggplot(aes(x=Movie, weight=value, fill=variable)) + geom_bar(position=position_fill(reverse=TRUE)) + labs(title='Proportion of Scores') + coord_flip() + labs(x='Proportion', fill='Score') + scale_fill_manual(values=c("red", "orange", "yellow", 'blue', 'green'))
+
 ```
 
 <div class='alert alert-success'>

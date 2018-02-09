@@ -1,27 +1,37 @@
-DROP TABLE IF EXISTS ratings;
+DROP TABLE IF EXISTS reviews;
+DROP TABLE IF EXISTS users;
 
-CREATE TABLE ratings(
- rating_id INTEGER AUTO_INCREMENT PRIMARY KEY NOT NULL,
- star_wars INTEGER,
- beauty_and_the_beast INTEGER,
- wonder_woman INTEGER,
- guardians_of_the_galaxy_2 INTEGER,
- jumanji INTEGER,
- spiderman_homecoming INTEGER
+CREATE TABLE users(
+ user_id INTEGER PRIMARY KEY NOT NULL,
+ timestamp DATETIME NOT NULL,
+ email VARCHAR(50)
 );
 
-LOAD DATA LOCAL INFILE 'C:\\Users\\Brian\\Desktop\\GradClasses\\Spring18\\607\\assignments\\week2assignmentMovies.csv' 
-INTO TABLE ratings
+CREATE TABLE reviews(
+ review_id INTEGER PRIMARY KEY NOT NULL,
+ user_id INTEGER NOT NULL,
+ movie VARCHAR(50) NOT NULL,
+ rating INTEGER,
+ foreign key(user_id) references users(user_id)
+);
+
+LOAD DATA LOCAL INFILE 'C:\\Users\\Brian\\Desktop\\GradClasses\\Spring18\\607\\assignments\\users.csv' 
+INTO TABLE users
 FIELDS TERMINATED BY ',' 
 ENCLOSED BY '"'
 LINES TERMINATED BY '\n'
-IGNORE 1 ROWS(@dummy, @dummy, @star_wars, @beauty_and_the_beast, @wonder_woman, @guardians_of_the_galaxy_2, @jumanji, @spiderman_homecoming)
+IGNORE 1 ROWS(user_id, @timestamp, email)
+SET 
+timestamp = STR_TO_DATE(@timestamp, '%d/%m/%Y %H:%i:%s')
+;
+
+LOAD DATA LOCAL INFILE 'C:\\Users\\Brian\\Desktop\\GradClasses\\Spring18\\607\\assignments\\reviews.csv' 
+INTO TABLE reviews
+FIELDS TERMINATED BY ',' 
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n'
+IGNORE 1 ROWS(review_id, user_id, movie, @rating)
 SET
-star_wars = nullif(@star_wars,0),
-beauty_and_the_beast = nullif(@beauty_and_the_beast,0),
-wonder_woman = nullif(@wonder_woman,0),
-guardians_of_the_galaxy_2 = nullif(@guardians_of_the_galaxy_2,0),
-jumanji = nullif(@jumanji,0),
-spiderman_homecoming = nullif(@spiderman_homecoming,0)
+rating = nullif(@rating,0)
 ;
 
